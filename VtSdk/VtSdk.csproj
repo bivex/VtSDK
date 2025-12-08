@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VtSdk.Domain\VtSdk.Domain.csproj" />
+    <ProjectReference Include="..\VtSdk.Application\VtSdk.Application.csproj" />
+    <ProjectReference Include="..\VtSdk.Infrastructure\VtSdk.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- NuGet Package Properties -->
+    <PackageId>VtSdk</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>VtSdk Contributors</Authors>
+    <Description>A clean, modern .NET SDK for managing Windows virtual desktops programmatically.</Description>
+    <PackageTags>windows virtual-desktop desktop-management win32 com</PackageTags>
+    <RepositoryUrl>https://github.com/your-repo/vtSdk</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
