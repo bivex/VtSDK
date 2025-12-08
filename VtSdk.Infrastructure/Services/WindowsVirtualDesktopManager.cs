@@ -76,9 +76,13 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
             _serviceProvider = (IServiceProvider10)Marshal.GetObjectForIUnknown(serviceProviderPtr);
 
             // Get Virtual Desktop Manager Internal
+            // Copy readonly GUIDs into locals so they can be passed by ref
+            var sidVirtualDesktopManagerInternal = SID_VirtualDesktopManagerInternal;
+            var iidVirtualDesktopManagerInternal = IID_IVirtualDesktopManagerInternal;
+
             _serviceProvider.QueryService(
-                ref SID_VirtualDesktopManagerInternal,
-                ref IID_IVirtualDesktopManagerInternal,
+                ref sidVirtualDesktopManagerInternal,
+                ref iidVirtualDesktopManagerInternal,
                 out IntPtr virtualDesktopManagerInternalPtr);
 
             _virtualDesktopManagerInternal = (IVirtualDesktopManagerInternal)Marshal.GetObjectForIUnknown(virtualDesktopManagerInternalPtr);
