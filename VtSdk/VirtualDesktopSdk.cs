@@ -4,6 +4,8 @@ using VtSdk.Application.UseCases.Commands;
 using VtSdk.Application.UseCases.Queries;
 using VtSdk.Domain.Services;
 using VtSdk.Infrastructure.Services;
+using VtSdk.Domain.Entities;
+using VtSdk.Domain.ValueObjects;
 
 namespace VtSdk;
 
