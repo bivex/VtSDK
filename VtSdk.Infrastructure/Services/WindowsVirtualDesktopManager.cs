@@ -15,6 +15,7 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     private readonly IVirtualDesktopManager _virtualDesktopManager;
     private readonly IVirtualDesktopManagerInternal _virtualDesktopManagerInternal;
     private readonly IServiceProvider10 _serviceProvider;
+    private readonly ILogger _logger;
     private bool _disposed;
 
     /// <summary>
@@ -50,12 +51,17 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="WindowsVirtualDesktopManager"/> class.
     /// </summary>
+    /// <param name="logger">The logger to use for logging operations.</param>
     /// <exception cref="DesktopOperationException">Thrown when virtual desktop services cannot be initialized.</exception>
-    public WindowsVirtualDesktopManager()
+    public WindowsVirtualDesktopManager(ILogger? logger = null)
     {
+        _logger = logger ?? new ConsoleLogger("WindowsVirtualDesktopManager");
+
         try
         {
+            _logger.LogInformation("Initializing Windows Virtual Desktop Manager...");
             // Create Virtual Desktop Manager
+            _logger.LogDebug("Creating Virtual Desktop Manager COM object...");
             NativeMethods.CoCreateInstance(
                 CLSID_VirtualDesktopManager,
                 IntPtr.Zero,
@@ -63,9 +69,25 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
                 IID_IVirtualDesktopManager,
                 out IntPtr virtualDesktopManagerPtr);
 
-            _virtualDesktopManager = (IVirtualDesktopManager)Marshal.GetObjectForIUnknown(virtualDesktopManagerPtr);
+            if (virtualDesktopManagerPtr == IntPtr.Zero)
+            {
+                _logger.LogError("Failed to create Virtual Desktop Manager COM object - returned null pointer");
+                throw new DesktopOperationException("Failed to create Virtual Desktop Manager COM object.");
+            }
+
+            _logger.LogDebug("Casting Virtual Desktop Manager COM object...");
+            object vdmObject = Marshal.GetObjectForIUnknown(virtualDesktopManagerPtr);
+            if (vdmObject == null || !(vdmObject is IVirtualDesktopManager))
+            {
+                _logger.LogError("Failed to cast Virtual Desktop Manager COM object to IVirtualDesktopManager interface");
+                Marshal.Release(virtualDesktopManagerPtr);
+                throw new DesktopOperationException("Failed to cast Virtual Desktop Manager COM object.");
+            }
+            _virtualDesktopManager = (IVirtualDesktopManager)vdmObject;
+            _logger.LogDebug("Virtual Desktop Manager created successfully");
 
             // Create Immersive Shell service provider
+            _logger.LogDebug("Creating Immersive Shell service provider COM object...");
             NativeMethods.CoCreateInstance(
                 CLSID_ImmersiveShell,
                 IntPtr.Zero,
@@ -73,9 +95,27 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
                 IID_IServiceProvider,
                 out IntPtr serviceProviderPtr);
 
-            _serviceProvider = (IServiceProvider10)Marshal.GetObjectForIUnknown(serviceProviderPtr);
+            if (serviceProviderPtr == IntPtr.Zero)
+            {
+                _logger.LogError("Failed to create Immersive Shell service provider COM object - returned null pointer");
+                Marshal.Release(virtualDesktopManagerPtr);
+                throw new DesktopOperationException("Failed to create Immersive Shell service provider COM object.");
+            }
+
+            _logger.LogDebug("Casting Immersive Shell service provider COM object...");
+            object spObject = Marshal.GetObjectForIUnknown(serviceProviderPtr);
+            if (spObject == null || !(spObject is IServiceProvider10))
+            {
+                _logger.LogError("Failed to cast Immersive Shell service provider COM object to IServiceProvider10 interface");
+                Marshal.Release(virtualDesktopManagerPtr);
+                Marshal.Release(serviceProviderPtr);
+                throw new DesktopOperationException("Failed to cast Immersive Shell service provider COM object.");
+            }
+            _serviceProvider = (IServiceProvider10)spObject;
+            _logger.LogDebug("Immersive Shell service provider created successfully");
 
             // Get Virtual Desktop Manager Internal
+            _logger.LogDebug("Querying for Virtual Desktop Manager Internal service...");
             // Copy readonly GUIDs into locals so they can be passed by ref
             var sidVirtualDesktopManagerInternal = SID_VirtualDesktopManagerInternal;
             var iidVirtualDesktopManagerInternal = IID_IVirtualDesktopManagerInternal;
@@ -85,10 +125,30 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
                 ref iidVirtualDesktopManagerInternal,
                 out IntPtr virtualDesktopManagerInternalPtr);
 
-            _virtualDesktopManagerInternal = (IVirtualDesktopManagerInternal)Marshal.GetObjectForIUnknown(virtualDesktopManagerInternalPtr);
+            if (virtualDesktopManagerInternalPtr == IntPtr.Zero)
+            {
+                _logger.LogWarning("Virtual Desktop Manager Internal service not available - Virtual Desktops may not be enabled");
+                Marshal.Release(virtualDesktopManagerPtr);
+                Marshal.Release(serviceProviderPtr);
+                throw new DesktopOperationException("Virtual Desktop Manager Internal service not available. Virtual Desktops may not be enabled.");
+            }
+
+            _logger.LogDebug("Casting Virtual Desktop Manager Internal COM object...");
+            object vdmiObject = Marshal.GetObjectForIUnknown(virtualDesktopManagerInternalPtr);
+            if (vdmiObject == null || !(vdmiObject is IVirtualDesktopManagerInternal))
+            {
+                _logger.LogError("Failed to cast Virtual Desktop Manager Internal COM object to IVirtualDesktopManagerInternal interface");
+                Marshal.Release(virtualDesktopManagerPtr);
+                Marshal.Release(serviceProviderPtr);
+                Marshal.Release(virtualDesktopManagerInternalPtr);
+                throw new DesktopOperationException("Failed to cast Virtual Desktop Manager Internal COM object.");
+            }
+            _virtualDesktopManagerInternal = (IVirtualDesktopManagerInternal)vdmiObject;
+            _logger.LogInformation("Windows Virtual Desktop Manager initialized successfully");
         }
         catch (Exception ex)
         {
+            _logger.LogError("Failed to initialize virtual desktop services", ex);
             throw new DesktopOperationException("Failed to initialize virtual desktop services.", ex);
         }
     }
@@ -101,28 +161,65 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     {
         try
         {
+            _logger.LogDebug("Getting all virtual desktops...");
             _virtualDesktopManagerInternal.GetDesktops(out IntPtr desktopsPtr);
-            var desktops = (IObjectArray)Marshal.GetObjectForIUnknown(desktopsPtr);
 
+            // Check if the pointer is valid
+            if (desktopsPtr == IntPtr.Zero)
+            {
+                _logger.LogWarning("GetDesktops returned null pointer - no virtual desktops available");
+                // No virtual desktops available (not enabled or no desktops exist)
+                return Array.Empty<VirtualDesktop>().AsReadOnly();
+            }
+
+            _logger.LogDebug("Retrieved desktops COM object pointer, casting to IObjectArray...");
+            // Try to get the IObjectArray interface
+            object comObject = Marshal.GetObjectForIUnknown(desktopsPtr);
+            if (comObject == null)
+            {
+                _logger.LogError("Failed to get COM object for desktops array - Marshal.GetObjectForIUnknown returned null");
+                Marshal.Release(desktopsPtr);
+                throw new DesktopOperationException("Failed to get COM object for desktops array.");
+            }
+
+            // Try to cast to IObjectArray
+            if (!(comObject is IObjectArray desktops))
+            {
+                _logger.LogError($"COM object does not implement IObjectArray interface - actual type: {comObject.GetType()}");
+                Marshal.Release(desktopsPtr);
+                throw new DesktopOperationException("COM object does not implement IObjectArray interface.");
+            }
+
+            _logger.LogDebug("Successfully cast to IObjectArray, enumerating desktops...");
             var result = new List<VirtualDesktop>();
             desktops.GetCount(out int count);
+            _logger.LogInformation($"Found {count} virtual desktops");
 
             for (int i = 0; i < count; i++)
             {
                 desktops.GetAt(i, typeof(IVirtualDesktop).GUID, out IntPtr desktopPtr);
-                var desktop = (IVirtualDesktop)Marshal.GetObjectForIUnknown(desktopPtr);
 
-                var virtualDesktop = CreateVirtualDesktopFromComObject(desktop, i);
-                result.Add(virtualDesktop);
-
-                Marshal.Release(desktopPtr);
+                if (desktopPtr != IntPtr.Zero)
+                {
+                    var desktop = (IVirtualDesktop)Marshal.GetObjectForIUnknown(desktopPtr);
+                    var virtualDesktop = CreateVirtualDesktopFromComObject(desktop, i);
+                    result.Add(virtualDesktop);
+                    _logger.LogDebug($"Retrieved desktop {i}: {virtualDesktop.Name ?? "Unnamed"} (ID: {virtualDesktop.Id})");
+                    Marshal.Release(desktopPtr);
+                }
+                else
+                {
+                    _logger.LogWarning($"Desktop {i} returned null pointer");
+                }
             }
 
             Marshal.Release(desktopsPtr);
+            _logger.LogInformation($"Successfully retrieved {result.Count} virtual desktops");
             return result.AsReadOnly();
         }
         catch (Exception ex)
         {
+            _logger.LogError("Failed to get virtual desktops", ex);
             throw new DesktopOperationException("Failed to get virtual desktops.", ex);
         }
     }
@@ -141,7 +238,21 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
                 return null;
             }
 
-            var currentDesktop = (IVirtualDesktop)Marshal.GetObjectForIUnknown(currentDesktopPtr);
+            // Try to get the COM object
+            object comObject = Marshal.GetObjectForIUnknown(currentDesktopPtr);
+            if (comObject == null)
+            {
+                Marshal.Release(currentDesktopPtr);
+                return null;
+            }
+
+            // Try to cast to IVirtualDesktop
+            if (!(comObject is IVirtualDesktop currentDesktop))
+            {
+                Marshal.Release(currentDesktopPtr);
+                throw new DesktopOperationException("COM object does not implement IVirtualDesktop interface.");
+            }
+
             var virtualDesktop = CreateVirtualDesktopFromComObject(currentDesktop, -1);
 
             // Set as active
