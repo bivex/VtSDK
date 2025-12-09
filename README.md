@@ -1,109 +1,618 @@
 # Virtual Desktop SDK (VtSdk)
 
-A clean, modern .NET SDK for managing Windows virtual desktops programmatically. Built with Domain-Driven Design (DDD) principles and Clean Architecture.
+## Front Matter
 
-## 🏗️ Architecture
+**Title:** Virtual Desktop SDK (VtSdk) User Guide and Developer Documentation
 
-This SDK follows Clean Architecture principles with clear separation of concerns:
+**Version:** 1.0.0
 
+**Date:** December 9, 2025
+
+**Authors:** VtSdk Development Team
+
+**Revision History:**
+
+| Version | Date | Author | Description |
+|---------|------|--------|-------------|
+| 1.0.0 | 2025-12-09 | VtSdk Team | Initial release of user documentation |
+
+## Introduction
+
+### Purpose
+
+This document provides comprehensive guidance for developers and system administrators who need to integrate Windows virtual desktop management capabilities into their .NET applications. It covers installation, configuration, usage, troubleshooting, and maintenance of the Virtual Desktop SDK.
+
+### Scope
+
+This guide covers:
+- Installation and setup of the VtSdk library
+- Basic and advanced usage patterns
+- API reference and domain models
+- Troubleshooting common issues
+- Best practices for integration
+
+This guide does not cover:
+- Windows operating system administration
+- Advanced Windows API programming
+- Custom Windows virtual desktop implementations
+
+### Target Audience
+
+**Primary Audience:**
+- .NET developers (intermediate to advanced level)
+- Application architects designing desktop management features
+
+**Secondary Audience:**
+- System administrators managing Windows environments
+- Quality assurance engineers testing virtual desktop functionality
+
+**Prerequisites:**
+- Proficiency in C# and .NET development
+- Understanding of asynchronous programming patterns
+- Basic knowledge of Windows operating system concepts
+- Experience with dependency injection frameworks (recommended)
+
+### Referenced Documents
+
+- [.NET 8.0 Documentation](https://learn.microsoft.com/en-us/dotnet/)
+- [Windows Virtual Desktop API Reference](https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ivirtualdesktopmanager)
+- [Clean Architecture by Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+
+## Concept of Operations
+
+### System Overview
+
+The Virtual Desktop SDK (VtSdk) is a .NET library that provides programmatic access to Windows virtual desktop management capabilities. It enables applications to:
+
+- Enumerate and monitor virtual desktops
+- Switch between desktops programmatically
+- Create and remove virtual desktops
+- Move application windows between desktops
+- Track desktop and window state changes
+
+### Typical Usage Scenarios
+
+**Desktop Management Applications:**
+Developers building custom desktop managers or virtual desktop enhancers can use VtSdk to create sophisticated user interfaces for desktop organization.
+
+**Automation Tools:**
+System administrators can build scripts and tools to automate desktop management tasks, such as organizing applications across multiple desktops based on user preferences or workflows.
+
+**Productivity Applications:**
+Applications that enhance user productivity can integrate virtual desktop switching capabilities, such as hotkey managers or workflow automation tools.
+
+**Testing Frameworks:**
+QA teams can use the SDK to create automated tests that verify application behavior across different virtual desktop configurations.
+
+### Operating Environment
+
+**Supported Platforms:**
+- Windows 10 version 1607 or later
+- Windows 11 (all versions)
+- .NET 8.0 or later
+
+**Execution Context:**
+- Must run in user session (not as a system service)
+- Requires access to Windows desktop APIs
+- COM components must be available and registered
+
+**Resource Requirements:**
+- Minimal memory footprint (< 10MB)
+- No significant CPU usage during normal operation
+- Network access not required for core functionality
+
+## Installation and Configuration
+
+### System Requirements
+
+**Hardware Requirements:**
+- x64 processor architecture
+- 100 MB available disk space
+- 512 MB RAM (additional for applications using the SDK)
+
+**Software Requirements:**
+- Windows 10 version 1607 (Build 14393) or later
+- .NET 8.0 Runtime or .NET 8.0 SDK (for development)
+- Windows Virtual Desktop feature enabled
+
+### Installation Procedure
+
+#### Option 1: NuGet Package Installation
+
+**Preconditions:**
+- .NET 8.0 SDK installed
+- Access to NuGet package repository
+- Project targets .NET 8.0 or later
+
+**Steps:**
+
+1. Open your .NET project in Visual Studio or your preferred IDE.
+2. Open the Package Manager Console (Tools → NuGet Package Manager → Package Manager Console).
+3. Execute the following command:
+   ```
+   Install-Package VtSdk
+   ```
+4. Alternatively, use the .NET CLI:
+   ```
+   dotnet add package VtSdk
+   ```
+
+**Post-conditions:**
+- VtSdk package is added to your project dependencies
+- All required assemblies are available in your project
+
+#### Option 2: Building from Source
+
+**Preconditions:**
+- Git client installed
+- .NET 8.0 SDK installed
+- Access to the VtSdk repository
+
+**Steps:**
+
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd vtSdk
+   ```
+
+2. Build all projects:
+   ```
+   dotnet build VtSdk.sln
+   ```
+
+3. (Optional) Run the demonstration application:
+   ```
+   dotnet run --project VtSdk.Demo
+   ```
+
+**Post-conditions:**
+- All projects compile successfully
+- Demo application runs and demonstrates basic functionality
+
+### Configuration
+
+#### Basic Configuration
+
+No additional configuration is required for basic usage. The SDK automatically detects and adapts to the Windows environment.
+
+#### Dependency Injection Setup (Recommended)
+
+**For ASP.NET Core applications:**
+
+```csharp
+// In Program.cs or Startup.cs
+using VtSdk.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add VtSdk services
+builder.Services.AddVirtualDesktopSdk();
+
+// Configure options if needed
+builder.Services.Configure<VirtualDesktopOptions>(options =>
+{
+    options.DefaultDesktopName = "Main Desktop";
+    options.EnableEventMonitoring = true;
+});
+
+var app = builder.Build();
 ```
-┌─────────────────────────────────────┐
-│         Presentation/API            │ ← Public API, DI setup
-│          VtSdk.csproj               │
-└─────────────────────────────────────┘
-                    │
-┌─────────────────────────────────────┐
-│         Application Layer           │ ← Use cases, commands, queries
-│      VtSdk.Application.csproj       │
-└─────────────────────────────────────┘
-                    │
-┌─────────────────────────────────────┐
-│       Domain Layer (Core)           │ ← Business rules, entities, value objects
-│        VtSdk.Domain.csproj          │
-└─────────────────────────────────────┘
-                    │
-┌─────────────────────────────────────┐
-│       Infrastructure Layer          │ ← Windows API, external dependencies
-│    VtSdk.Infrastructure.csproj      │
-└─────────────────────────────────────┘
-```
 
-## 🎯 What It Does
-
-The Virtual Desktop SDK enables programmatic control of Windows virtual desktops:
-
-- **Get desktop information**: List all desktops, get current desktop, find windows per desktop
-- **Switch desktops**: Programmatically switch between virtual desktops
-- **Manage desktops**: Create new desktops, remove existing ones
-- **Move windows**: Move applications between desktops
-- **Monitor changes**: Track desktop switches and window movements
-
-## 🚀 Quick Start
-
-### Basic Usage
+**For other DI containers:**
 
 ```csharp
 using VtSdk;
 
-// Create manager instance
-using var manager = new VirtualDesktopManager();
+// Register services manually
+var services = new ServiceCollection();
+services.AddSingleton<IVirtualDesktopManager, WindowsVirtualDesktopManager>();
+services.AddSingleton<VirtualDesktopService>();
 
-// Get all desktops
-var desktops = manager.GetDesktops();
-foreach (var desktop in desktops)
-{
-    Console.WriteLine($"{desktop.Name} (Index: {desktop.Index}, Windows: {desktop.WindowCount})");
-}
-
-// Get current desktop
-var current = manager.GetCurrentDesktop();
-Console.WriteLine($"Current desktop: {current?.Name}");
-
-// Switch to next desktop
-await manager.SwitchToNextDesktopAsync();
-
-// Create a new desktop
-var newDesktop = await manager.CreateDesktopAsync("My Desktop");
-
-// Switch to it
-await manager.SwitchToDesktopAsync(newDesktop.Id);
-
-// Move current window to another desktop
-await manager.MoveCurrentWindowToDesktopAsync(desktopId);
-
-// Clean up
-await manager.RemoveDesktopAsync(newDesktop.Id);
+var provider = services.BuildServiceProvider();
 ```
 
-### Dependency Injection (ASP.NET Core, WPF, etc.)
+### Verification
+
+**Procedure: Verify Installation**
+
+1. Create a new console application.
+2. Add the VtSdk package reference.
+3. Add the following test code:
 
 ```csharp
-// In Startup.cs or Program.cs
-builder.Services.AddVirtualDesktopSdk();
+using VtSdk;
 
-// In your service
-public class MyService
+try
 {
-    private readonly VirtualDesktopService _desktopService;
-
-    public MyService(VirtualDesktopService desktopService)
-    {
-        _desktopService = desktopService;
-    }
-
-    public async Task DoSomething()
-    {
-        var desktops = _desktopService.GetDesktops();
-        // ... use the service
-    }
+    using var manager = new VirtualDesktopManager();
+    var desktops = manager.GetDesktops();
+    Console.WriteLine($"Found {desktops.Count} virtual desktops");
+    Console.WriteLine("Installation successful!");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Installation failed: {ex.Message}");
 }
 ```
 
-## 📋 API Reference
+4. Run the application.
+5. Verify that the application detects virtual desktops without errors.
 
-### VirtualDesktopManager
+## Procedures
 
-The main entry point for simple usage scenarios.
+### Basic Desktop Operations
+
+#### Procedure: Enumerate Virtual Desktops
+
+**Purpose:** Retrieve information about all available virtual desktops.
+
+**Preconditions:**
+- Windows virtual desktops are enabled
+- Application has access to desktop APIs
+- VtSdk is properly initialized
+
+**Steps:**
+
+1. Create a `VirtualDesktopManager` instance:
+   ```csharp
+   using var manager = new VirtualDesktopManager();
+   ```
+
+2. Call the `GetDesktops()` method:
+   ```csharp
+   var desktops = manager.GetDesktops();
+   ```
+
+3. Iterate through the results:
+   ```csharp
+   foreach (var desktop in desktops)
+   {
+       Console.WriteLine($"Desktop: {desktop.Name}");
+       Console.WriteLine($"Index: {desktop.Index}");
+       Console.WriteLine($"Windows: {desktop.WindowCount}");
+       Console.WriteLine($"Active: {desktop.IsActive}");
+   }
+   ```
+
+**Expected Results:**
+- List of all virtual desktops with their properties
+- Current desktop marked as active
+
+**Error Conditions:**
+- `VirtualDesktopException` if Windows APIs are unavailable
+- Empty collection if virtual desktops are disabled
+
+#### Procedure: Switch Between Desktops
+
+**Purpose:** Programmatically switch to a different virtual desktop.
+
+**Preconditions:**
+- Target desktop exists and is accessible
+- Application has permission to switch desktops
+- VtSdk manager is initialized
+
+**Steps:**
+
+1. Obtain the target desktop identifier:
+   ```csharp
+   var desktops = manager.GetDesktops();
+   var targetDesktop = desktops.FirstOrDefault(d => d.Name.Contains("Work"));
+   if (targetDesktop == null) return;
+   ```
+
+2. Switch to the target desktop:
+   ```csharp
+   bool success = await manager.SwitchToDesktopAsync(targetDesktop.Id);
+   ```
+
+3. Verify the switch (optional):
+   ```csharp
+   var current = manager.GetCurrentDesktop();
+   Console.WriteLine($"Current desktop: {current?.Name}");
+   ```
+
+**Expected Results:**
+- Desktop switch completes successfully
+- User interface updates to show the new desktop
+- Return value is `true`
+
+**Error Conditions:**
+- `ArgumentException` if desktop ID is invalid
+- `VirtualDesktopException` if switch operation fails
+- `false` return value indicates operation failed
+
+#### Procedure: Create New Desktop
+
+**Purpose:** Create a new virtual desktop with optional custom name.
+
+**Preconditions:**
+- Windows virtual desktops are enabled
+- User has permission to create desktops
+- System has capacity for additional desktops
+
+**Steps:**
+
+1. Prepare desktop creation parameters:
+   ```csharp
+   string desktopName = "Development Workspace";
+   ```
+
+2. Create the new desktop:
+   ```csharp
+   var newDesktop = await manager.CreateDesktopAsync(desktopName);
+   ```
+
+3. (Optional) Switch to the new desktop:
+   ```csharp
+   await manager.SwitchToDesktopAsync(newDesktop.Id);
+   ```
+
+4. Verify creation:
+   ```csharp
+   Console.WriteLine($"Created desktop: {newDesktop.Name} (ID: {newDesktop.Id})");
+   ```
+
+**Expected Results:**
+- New desktop is created and available
+- Desktop appears in system taskbar
+- `VirtualDesktop` object returned with valid properties
+
+**Error Conditions:**
+- `VirtualDesktopException` if creation fails
+- System limit reached (typically 20 desktops)
+
+#### Procedure: Move Window to Different Desktop
+
+**Purpose:** Move an application window from one virtual desktop to another.
+
+**Preconditions:**
+- Source window exists and is accessible
+- Target desktop exists
+- Application has permission to manipulate windows
+
+**Steps:**
+
+1. Identify the window to move:
+   ```csharp
+   // Get all windows
+   var allWindows = manager.GetAllWindows();
+
+   // Find specific window by title
+   var targetWindow = allWindows.FirstOrDefault(w =>
+       w.Title.Contains("Visual Studio"));
+   if (targetWindow == null) return;
+   ```
+
+2. Select target desktop:
+   ```csharp
+   var desktops = manager.GetDesktops();
+   var targetDesktop = desktops.FirstOrDefault(d => d.Name.Contains("Dev"));
+   if (targetDesktop == null) return;
+   ```
+
+3. Move the window:
+   ```csharp
+   bool success = await manager.MoveWindowToDesktopAsync(
+       targetWindow.Handle, targetDesktop.Id);
+   ```
+
+**Expected Results:**
+- Window moves to target desktop
+- Window disappears from current desktop
+- Return value is `true`
+
+**Error Conditions:**
+- `ArgumentException` if window handle or desktop ID is invalid
+- `VirtualDesktopException` if move operation fails
+- `false` return value indicates operation failed
+
+### Advanced Operations
+
+#### Procedure: Monitor Desktop Changes
+
+**Purpose:** Track changes to virtual desktop state and windows.
+
+**Preconditions:**
+- Event monitoring enabled in configuration
+- Application can handle asynchronous events
+
+**Steps:**
+
+1. Set up event handlers:
+   ```csharp
+   manager.DesktopCreated += (sender, args) =>
+   {
+       Console.WriteLine($"Desktop created: {args.Desktop.Name}");
+   };
+
+   manager.DesktopDestroyed += (sender, args) =>
+   {
+       Console.WriteLine($"Desktop destroyed: {args.DesktopId}");
+   };
+
+   manager.DesktopChanged += (sender, args) =>
+   {
+       Console.WriteLine($"Switched to desktop: {args.NewDesktop.Name}");
+   };
+   ```
+
+2. Enable monitoring:
+   ```csharp
+   manager.EnableEventMonitoring();
+   ```
+
+3. Keep application running to receive events:
+   ```csharp
+   await Task.Delay(Timeout.Infinite);
+   ```
+
+**Expected Results:**
+- Events fired when desktops are created, destroyed, or switched
+- Event arguments contain relevant desktop information
+
+## Troubleshooting and Error Handling
+
+### Common Issues
+
+#### Issue: VirtualDesktopException on Initialization
+
+**Symptoms:**
+- Exception thrown when creating `VirtualDesktopManager`
+- Message indicates Windows API unavailable
+
+**Possible Causes:**
+- Windows virtual desktops not enabled
+- Running as system service instead of user session
+- COM components not registered
+
+**Resolution Steps:**
+
+1. Verify Windows version supports virtual desktops (Windows 10 1607+).
+2. Ensure virtual desktops are enabled in system settings.
+3. Confirm application runs in user session, not as service.
+4. Try running as administrator if permission issues suspected.
+
+#### Issue: Desktop Operations Fail Silently
+
+**Symptoms:**
+- Methods return `false` without throwing exceptions
+- Desktop state doesn't change as expected
+
+**Possible Causes:**
+- Windows is in a restricted state
+- Another application is managing desktops
+- System policy restrictions
+
+**Resolution Steps:**
+
+1. Check Windows Event Viewer for related errors.
+2. Verify no other desktop management software is running.
+3. Test with minimal code to isolate the issue.
+4. Restart Windows Explorer if desktop shell issues suspected.
+
+#### Issue: Window Move Operations Fail
+
+**Symptoms:**
+- `MoveWindowToDesktopAsync` returns `false`
+- Window remains on current desktop
+
+**Possible Causes:**
+- Window belongs to system process
+- Window has special protection (UAC dialogs, etc.)
+- Target desktop no longer exists
+
+**Resolution Steps:**
+
+1. Verify window handle is valid and window still exists.
+2. Check if window belongs to current user session.
+3. Ensure target desktop still exists.
+4. Try moving different windows to test if issue is window-specific.
+
+### Error Messages and Meanings
+
+| Error Message | Meaning | Resolution |
+|---------------|---------|------------|
+| `VirtualDesktopNotSupportedException` | Windows version doesn't support virtual desktops | Upgrade to Windows 10 1607+ or Windows 11 |
+| `ComInitializationException` | COM components failed to initialize | Restart application or system |
+| `AccessDeniedException` | Insufficient permissions | Run as administrator or check user rights |
+| `InvalidDesktopIdException` | Desktop identifier is invalid | Refresh desktop list and retry |
+| `WindowNotFoundException` | Window handle is invalid | Refresh window list and retry |
+
+### Support and Escalation
+
+**Community Support:**
+- GitHub Issues: Report bugs and request features
+- Stack Overflow: Ask questions with `vtsdk` tag
+
+**Professional Support:**
+- Contact the development team for enterprise support options
+- Check documentation repository for known issues and workarounds
+
+## Information for Uninstallation
+
+### When to Uninstall
+
+Uninstallation may be necessary when:
+- Removing the SDK from development environment
+- Upgrading to incompatible version
+- Troubleshooting integration issues
+- Cleaning up unused dependencies
+
+### Uninstallation Procedure
+
+#### Option 1: Remove NuGet Package
+
+**Preconditions:**
+- Project is open in development environment
+- No code dependencies on VtSdk remain
+
+**Steps:**
+
+1. Open Package Manager Console in Visual Studio.
+2. Execute uninstall command:
+   ```
+   Uninstall-Package VtSdk
+   ```
+3. Alternatively, use .NET CLI:
+   ```
+   dotnet remove package VtSdk
+   ```
+4. Clean and rebuild project:
+   ```
+   dotnet clean
+   dotnet build
+   ```
+
+**Post-conditions:**
+- VtSdk package removed from project
+- No references to VtSdk assemblies
+
+#### Option 2: Remove Source Installation
+
+**Preconditions:**
+- Source code repository cloned locally
+- No other projects depend on local VtSdk build
+
+**Steps:**
+
+1. Remove cloned repository:
+   ```
+   rd /s vtSdk
+   ```
+2. Clean NuGet cache (optional):
+   ```
+   dotnet nuget locals all --clear
+   ```
+3. Remove any local package references.
+
+**Post-conditions:**
+- All VtSdk source code and build artifacts removed
+- System ready for clean reinstallation if needed
+
+### Data Cleanup
+
+The VtSdk library does not create persistent system data. However, applications using VtSdk may have stored configuration data that should be cleaned up:
+
+1. Remove application configuration files containing VtSdk settings.
+2. Clear any cached desktop state information.
+3. Reset application preferences to defaults.
+
+### Verification
+
+**Procedure: Verify Uninstallation**
+
+1. Attempt to build project that previously used VtSdk.
+2. Verify compilation errors indicate missing VtSdk references.
+3. Confirm no VtSdk assemblies in output directory.
+
+## Appendices
+
+### Appendix A: API Reference
+
+#### VirtualDesktopManager Class
+
+Main entry point for simple usage scenarios.
 
 ```csharp
 public class VirtualDesktopManager : IDisposable
@@ -125,30 +634,43 @@ public class VirtualDesktopManager : IDisposable
     Task<bool> MoveWindowToDesktopAsync(WindowHandle windowHandle, DesktopId desktopId)
     IReadOnlyCollection<Window> GetWindowsForDesktop(DesktopId desktopId)
     IReadOnlyCollection<Window> GetAllWindows()
+
+    // Event monitoring
+    void EnableEventMonitoring()
+    event EventHandler<DesktopEventArgs> DesktopCreated
+    event EventHandler<DesktopEventArgs> DesktopDestroyed
+    event EventHandler<DesktopChangedEventArgs> DesktopChanged
 }
 ```
 
-### VirtualDesktopService
+#### VirtualDesktopService Class
 
 Application service for complex scenarios with dependency injection.
 
 ```csharp
 public class VirtualDesktopService
 {
-    // All VirtualDesktopManager methods plus additional orchestration
+    // All VirtualDesktopManager methods plus orchestration
     Task<bool> MoveCurrentWindowToDesktopAsync(DesktopId desktopId)
-    // ... additional business logic methods
+
+    // Additional business logic methods
+    Task<VirtualDesktop> GetOrCreateDesktopAsync(string name)
+    Task<bool> OrganizeWindowsByApplicationAsync()
 }
 ```
 
-### Domain Models
+### Appendix B: Domain Models
+
+#### Value Objects
 
 ```csharp
-// Value Objects (immutable)
 public readonly record struct DesktopId(Guid Value);
 public readonly record struct WindowHandle(IntPtr Value);
+```
 
-// Entities
+#### Entities
+
+```csharp
 public class VirtualDesktop
 {
     DesktopId Id { get; }
@@ -169,75 +691,42 @@ public class Window
 }
 ```
 
-## 🔧 Requirements
+### Appendix C: Glossary
 
-- **Windows 10 version 1607** or later (virtual desktops introduced)
-- **.NET 8.0** or later
-- **Windows API access** (runs in user context)
+**COM (Component Object Model):** Microsoft's framework for developing software components that can interact with each other.
 
-## ⚠️ Limitations
+**Dependency Injection:** A design pattern where dependencies are provided to a class rather than the class creating them itself.
 
-- **Windows-only**: Designed specifically for Windows virtual desktop management
-- **User context**: Must run in user session (not system services)
-- **API availability**: Some features require Windows 10/11 with virtual desktop support
-- **COM dependencies**: Uses Windows COM interfaces that may not be available in all environments
+**Domain-Driven Design (DDD):** An approach to software development that centers the development on programming a domain model.
 
-## 🛠️ Building from Source
+**NuGet:** The package manager for .NET that makes it easy to install and update libraries and tools.
 
-```bash
-# Clone repository
-git clone <repository-url>
-cd vtSdk
+**Virtual Desktop:** A feature in Windows that allows users to organize windows and applications across multiple desktop spaces.
 
-# Build all projects
-dotnet build VtSdk.sln
+**Window Handle:** A unique identifier assigned to each window by the Windows operating system.
 
-# Run demo
-dotnet run --project VtSdk.Demo
+### Appendix D: Index
 
-# Run tests
-dotnet test VtSdk.sln
-```
+**API Reference:** See Appendix A
 
-## 🧪 Testing
+**Configuration:** See Installation and Configuration section
 
-The SDK includes comprehensive unit tests for domain logic:
+**Creating desktops:** See Procedure: Create New Desktop
 
-```bash
-# Run domain tests
-dotnet test VtSdk.Domain.Tests
+**Dependency injection:** See Installation and Configuration section
 
-# Run with coverage
-dotnet test VtSdk.Domain.Tests --collect:"XPlat Code Coverage"
-```
+**Desktop enumeration:** See Procedure: Enumerate Virtual Desktops
 
-## 📚 Design Principles
+**Desktop switching:** See Procedure: Switch Between Desktops
 
-This SDK follows modern .NET development best practices:
+**Error handling:** See Troubleshooting and Error Handling section
 
-- **SOLID Principles**: Single responsibility, open/closed, Liskov substitution, interface segregation, dependency inversion
-- **Domain-Driven Design**: Rich domain model with value objects, entities, and domain services
-- **Clean Architecture**: Dependency flow from outer layers to inner layers
-- **Testability**: Dependency injection, interface-based design, pure functions
-- **Error Handling**: Custom domain exceptions, proper error propagation
-- **Async/Await**: Proper asynchronous programming with cancellation support
-- **Resource Management**: IDisposable pattern, proper cleanup
-- **Type Safety**: Nullable reference types, immutable types where appropriate
+**Event monitoring:** See Procedure: Monitor Desktop Changes
 
-## 🤝 Contributing
+**Installation:** See Installation and Configuration section
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+**Moving windows:** See Procedure: Move Window to Different Desktop
 
-## 📄 License
+**Troubleshooting:** See Troubleshooting and Error Handling section
 
-[Add your license here]
-
-## 🔗 Related Links
-
-- [Windows Virtual Desktop API Documentation](https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ivirtualdesktopmanager)
-- [Clean Architecture by Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [Domain-Driven Design](https://domainlanguage.com/ddd/)
+**Uninstallation:** See Information for Uninstallation section
