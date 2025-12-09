@@ -111,32 +111,114 @@ internal interface IApplicationViewCollection
 }
 
 /// <summary>
-/// COM interface for virtual desktop.
+/// COM interface for virtual desktop (Windows 10).
 /// </summary>
 [ComImport]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-[Guid("3f07f4be-11f3-4001-985f-687e68e2c4b2")]
-internal interface IVirtualDesktop
+[Guid("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4")]
+internal interface IVirtualDesktop_Win10
 {
+    /// <summary>
+    /// Checks if a view is visible on this desktop.
+    /// </summary>
+    bool IsViewVisible(IApplicationView view);
+
     /// <summary>
     /// Gets the desktop ID.
     /// </summary>
-    void GetId(out Guid desktopId);
+    Guid GetId();
+}
+
+/// <summary>
+/// COM interface for virtual desktop (Windows 11 22H2+).
+/// </summary>
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("536D3495-B208-4CC9-AE26-DE8111275BF8")]
+internal interface IVirtualDesktop_Win11_22H2
+{
+    /// <summary>
+    /// Checks if a view is visible on this desktop.
+    /// </summary>
+    bool IsViewVisible(IApplicationView view);
+
+    /// <summary>
+    /// Gets the desktop ID.
+    /// </summary>
+    Guid GetId();
 
     /// <summary>
     /// Gets the desktop name.
     /// </summary>
-    void GetName(out IntPtr name);
+    [return: MarshalAs(UnmanagedType.HString)]
+    string GetName();
 
     /// <summary>
-    /// Checks if this is the current desktop.
+    /// Gets the wallpaper path.
     /// </summary>
-    void IsViewVisible(IntPtr view, out bool isVisible);
+    [return: MarshalAs(UnmanagedType.HString)]
+    string GetWallpaperPath();
 
     /// <summary>
-    /// Gets the desktop index.
+    /// Checks if this is a remote desktop.
     /// </summary>
-    void GetIndex(out int index);
+    bool IsRemote();
+}
+
+/// <summary>
+/// COM interface for virtual desktop (Windows 11 23H2+).
+/// </summary>
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("3F07F4BE-B107-441A-AF0F-39D82529072C")]
+internal interface IVirtualDesktop_Win11_Newer
+{
+    /// <summary>
+    /// Checks if a view is visible on this desktop.
+    /// </summary>
+    bool IsViewVisible(IApplicationView view);
+
+    /// <summary>
+    /// Gets the desktop ID.
+    /// </summary>
+    Guid GetId();
+
+    /// <summary>
+    /// Gets the desktop name.
+    /// </summary>
+    [return: MarshalAs(UnmanagedType.HString)]
+    string GetName();
+
+    /// <summary>
+    /// Gets the wallpaper path.
+    /// </summary>
+    [return: MarshalAs(UnmanagedType.HString)]
+    string GetWallpaperPath();
+
+    /// <summary>
+    /// Checks if this is a remote desktop.
+    /// </summary>
+    bool IsRemote();
+}
+
+/// <summary>
+/// COM interface for virtual desktop.
+/// Uses the Windows 10 GUID as default.
+/// </summary>
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4")] // Windows 10 GUID
+internal interface IVirtualDesktop
+{
+    /// <summary>
+    /// Checks if a view is visible on this desktop.
+    /// </summary>
+    bool IsViewVisible(IApplicationView view);
+
+    /// <summary>
+    /// Gets the desktop ID.
+    /// </summary>
+    Guid GetId();
 }
 
 /// <summary>

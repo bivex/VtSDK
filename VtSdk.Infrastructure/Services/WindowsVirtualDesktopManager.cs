@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using VtSdk.Domain.Entities;
 using VtSdk.Domain.Exceptions;
 using VtSdk.Domain.Services;
@@ -47,6 +48,20 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     /// SID for Virtual Desktop Manager Internal.
     /// </summary>
     private static readonly Guid SID_VirtualDesktopManagerInternal = new("c5e0cdca-7b6e-41b2-9fc4-d93975cc467b");
+
+    /// <summary>
+    /// Known IVirtualDesktop interface GUIDs for different Windows versions.
+    /// Based on research and implementations like MScholtes/VirtualDesktop
+    /// </summary>
+    private static readonly Guid[] KnownIVirtualDesktopGuids = new[]
+    {
+        new Guid("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4"), // Windows 10 (original)
+        new Guid("f31574d6-b682-4cdc-bd56-1827860abec6"), // Windows 10 (alternative)
+        new Guid("536D3495-B208-4CC9-AE26-DE8111275BF8"), // Windows 11 22H2
+        new Guid("3F07F4BE-B107-441A-AF0F-39D82529072C"), // Windows 11 23H2+
+        new Guid("a5cd92ff-29be-454c-8d04-d82879fb3f1b"), // Another variant
+        new Guid("3f07f4be-11f3-4001-985f-687e68e2c4b2"), // Legacy/fallback
+    };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WindowsVirtualDesktopManager"/> class.
@@ -154,6 +169,40 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     }
 
     /// <summary>
+    /// Detects the Windows build version to determine the correct IVirtualDesktop GUID.
+    /// </summary>
+    /// <param name="logger">Logger for diagnostic information.</param>
+    /// <returns>The appropriate GUID for IVirtualDesktop interface based on Windows version.</returns>
+    private static Guid GetIVirtualDesktopGuid(ILogger? logger = null)
+    {
+        try
+        {
+            var version = Environment.OSVersion;
+            int build = version.Version.Build;
+
+            // Windows 11 builds start from 22000
+            if (build >= 22000)
+            {
+                // Windows 11 - try newer GUID first, then older
+                logger?.LogDebug($"Windows build {build} detected, using Windows 11 GUID");
+                return new Guid("3F07F4BE-B107-441A-AF0F-39D82529072C"); // Windows 11 23H2+
+            }
+            else
+            {
+                // Windows 10
+                logger?.LogDebug($"Windows build {build} detected, using Windows 10 GUID");
+                return new Guid("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning($"Failed to detect Windows version, using fallback GUID: {ex.Message}");
+            // Fallback to legacy GUID
+            return new Guid("3f07f4be-11f3-4001-985f-687e68e2c4b2");
+        }
+    }
+
+    /// <summary>
     /// Gets all virtual desktops currently available on the system.
     /// </summary>
     /// <returns>A collection of all virtual desktops.</returns>
@@ -197,19 +246,42 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
 
             for (int i = 0; i < count; i++)
             {
-                desktops.GetAt(i, typeof(IVirtualDesktop).GUID, out IntPtr desktopPtr);
+                try
+                {
+                    // Try to get the desktop using the Windows 10 GUID directly
+                    var win10Guid = new Guid("FF72FFDD-BE7E-43FC-9C03-AD81681E88E4");
+                    desktops.GetAt(i, win10Guid, out IntPtr desktopPtr);
 
-                if (desktopPtr != IntPtr.Zero)
-                {
-                    var desktop = (IVirtualDesktop)Marshal.GetObjectForIUnknown(desktopPtr);
-                    var virtualDesktop = CreateVirtualDesktopFromComObject(desktop, i);
-                    result.Add(virtualDesktop);
-                    _logger.LogDebug($"Retrieved desktop {i}: {virtualDesktop.Name ?? "Unnamed"} (ID: {virtualDesktop.Id})");
-                    Marshal.Release(desktopPtr);
+                    if (desktopPtr != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            // Cast directly to our interface
+                            var desktop = (IVirtualDesktop_Win10)Marshal.GetObjectForIUnknown(desktopPtr);
+                            if (desktop != null)
+                            {
+                                var virtualDesktop = CreateVirtualDesktopFromComObject(desktop, i);
+                                result.Add(virtualDesktop);
+                                _logger.LogDebug($"Retrieved desktop {i}: {virtualDesktop.Name ?? "Unnamed"} (ID: {virtualDesktop.Id})");
+                            }
+                            else
+                            {
+                                _logger.LogWarning($"Failed to cast desktop {i} to IVirtualDesktop_Win10");
+                            }
+                        }
+                        finally
+                        {
+                            Marshal.Release(desktopPtr);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Desktop {i} returned null pointer");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.LogWarning($"Desktop {i} returned null pointer");
+                    _logger.LogError($"Exception while processing desktop {i}: {ex.Message}");
                 }
             }
 
@@ -246,8 +318,9 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
                 return null;
             }
 
-            // Try to cast to IVirtualDesktop
-            if (!(comObject is IVirtualDesktop currentDesktop))
+            // Try to cast directly to IVirtualDesktop_Win10
+            var currentDesktop = (IVirtualDesktop_Win10)Marshal.GetObjectForIUnknown(currentDesktopPtr);
+            if (currentDesktop == null)
             {
                 Marshal.Release(currentDesktopPtr);
                 throw new DesktopOperationException("COM object does not implement IVirtualDesktop interface.");
@@ -396,7 +469,12 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
         try
         {
             _virtualDesktopManagerInternal.CreateDesktopW(out IntPtr newDesktopPtr);
-            var newDesktop = (IVirtualDesktop)Marshal.GetObjectForIUnknown(newDesktopPtr);
+            var newDesktop = (IVirtualDesktop_Win10)Marshal.GetObjectForIUnknown(newDesktopPtr);
+            if (newDesktop == null)
+            {
+                Marshal.Release(newDesktopPtr);
+                throw new DesktopOperationException("Failed to cast new desktop to IVirtualDesktop interface.");
+            }
 
             var virtualDesktop = CreateVirtualDesktopFromComObject(newDesktop, -1);
 
@@ -491,20 +569,36 @@ public class WindowsVirtualDesktopManager : IDesktopManager, IDisposable
     /// </summary>
     private static VirtualDesktop CreateVirtualDesktopFromComObject(IVirtualDesktop desktop, int index)
     {
-        desktop.GetId(out Guid id);
-        desktop.GetName(out IntPtr namePtr);
+        Guid id = desktop.GetId();
 
+        // Windows 10 doesn't have GetName method, so name will be null
         string? name = null;
-        if (namePtr != IntPtr.Zero)
-        {
-            name = Marshal.PtrToStringUni(namePtr);
-            Marshal.FreeCoTaskMem(namePtr);
-        }
 
-        // If index is not provided, get it from the desktop
+        // If index is not provided, we can't get it from Windows 10 interface
+        // For now, use the provided index or 0 as default
         if (index == -1)
         {
-            desktop.GetIndex(out index);
+            index = 0; // Default for Windows 10
+        }
+
+        return new VirtualDesktop(new DesktopId(id), name, index, false);
+    }
+
+    /// <summary>
+    /// Creates a VirtualDesktop entity from a COM IVirtualDesktop_Win10 object.
+    /// </summary>
+    private static VirtualDesktop CreateVirtualDesktopFromComObject(IVirtualDesktop_Win10 desktop, int index)
+    {
+        Guid id = desktop.GetId();
+
+        // Windows 10 IVirtualDesktop doesn't have GetName method
+        string? name = null;
+
+        // Windows 10 IVirtualDesktop doesn't have GetIndex method
+        // Use provided index or default to 0
+        if (index == -1)
+        {
+            index = 0;
         }
 
         return new VirtualDesktop(new DesktopId(id), name, index, false);
